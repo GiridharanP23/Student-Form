@@ -11,25 +11,18 @@ from django.views.decorators.csrf import csrf_exempt
 from .models import Student, Tenant
 from django.http import JsonResponse
 from .models import Student
+from django.shortcuts import get_object_or_404
 
-def student_list(request):
-    tenant = request.tenant
+def student_list(request, tenant_slug):
+    tenant = get_object_or_404(Tenant, domain=tenant_slug)
     students = Student.objects.filter(tenant=tenant).values()
     return JsonResponse(list(students), safe=False)
 
 
 class AddStudentView(View):
-    @csrf_exempt  # Exempt CSRF for API testing
-    def post(self, request, *args, **kwargs):
-        tenant_domain = request.GET.get('tenant_domain')  # Get tenant domain from query param
-
-        if not tenant_domain:
-            return HttpResponseForbidden("Tenant domain not provided.")
-
-        try:
-            tenant = Tenant.objects.get(domain=tenant_domain)
-        except Tenant.DoesNotExist:
-            return HttpResponseForbidden("Tenant not found.")
+    @csrf_exempt
+    def post(self, request, tenant_slug, *args, **kwargs):
+        tenant = get_object_or_404(Tenant, domain=tenant_slug)
 
         try:
             data = json.loads(request.body)
@@ -41,7 +34,7 @@ class AddStudentView(View):
         email = data.get('email')
         date_of_birth = data.get('date_of_birth')
 
-        if not first_name or not last_name or not email or not date_of_birth:
+        if not all([first_name, last_name, email, date_of_birth]):
             return JsonResponse({'error': 'Missing required fields'}, status=400)
 
         student = Student.objects.create(
@@ -53,7 +46,6 @@ class AddStudentView(View):
         )
 
         return JsonResponse({'message': 'Student created successfully', 'student_id': student.id}, status=201)
-
 
 class AddTenantView(View):
     def post(self, request, *args, **kwargs):
